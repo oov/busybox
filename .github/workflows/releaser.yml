@@ -1,0 +1,51 @@
+name: releaser
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  release:
+    permissions:
+      contents: write
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v3
+        with:
+          submodules: recursive
+      - name: Get the revision
+        id: get_revision
+        run: |
+          REVISION=$(git rev-parse --short HEAD)
+          echo "revision=${REVISION}" >> $GITHUB_OUTPUT
+      - name: setup
+        run: |
+          sudo apt install -y git build-essential mingw-w64
+      - name: Build
+        run: |
+          mkdir dist
+
+          cd busybox
+          make defconfig
+          echo "CONFIG_STATIC=y" >> .config
+          make
+          cp busybox ../dist/busybox-linux-x86_64-${{ steps.get_revision.outputs.revision }}
+          cd ..
+
+          cd busybox-w32
+          make mingw32_defconfig
+          make
+          cp busybox.exe ../dist/busybox-windows-i686-${{ steps.get_revision.outputs.revision }}.exe
+          cd ..
+      - name: Create Release
+        id: create_release
+        uses: softprops/action-gh-release@v1
+        with:
+          tag_name: build-${{ steps.get_revision.outputs.revision }}
+          draft: false
+          prerelease: false
+          files: dist/*
+          body: |
+            - [Linux 64bit](https://github.com/oov/busybox/releases/download/build-${{ steps.get_revision.outputs.revision }}/busybox-linux-x86_64-${{ steps.get_revision.outputs.revision }})
+            - [Windows 32bit](https://github.com/oov/busybox/releases/download/build-${{ steps.get_revision.outputs.revision }}/busybox-windows-i686-${{ steps.get_revision.outputs.revision }}.exe)
